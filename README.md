@@ -58,6 +58,7 @@ npm run dev
 | 全局采集看板 | `dashboard` | 看板面板 | 面板编号、面板名称、显示指标 |
 | 采集配置模板 | `crawlconf` | 配置模板 | 模板编号、模板名称、目标类型 |
 | 采集数据源池 | `datasource` | 数据源条目 | 条目编号、数据源名称、源类型 |
+| 模板发布链路 | `snapshot` / `release` / `reference` | 配置快照、模板发布版本、模板引用清单 | 快照编号、版本编号、清单编号 |
 | 采集日志解析 | `logparse` | 日志模板 | 模板编号、日志类型、解析规则 |
 | 采集频率控制 | `ratelimit` | 频率规则 | 规则编号、目标站点、请求间隔 |
 | 采集代理路由 | `proxy` | 代理配置 | 配置编号、代理地址、代理协议 |
@@ -72,6 +73,25 @@ npm run dev
   `backend/app/routers/<模块>.py`，业务规则在 `backend/app/services/<模块>.py`。
 - 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
+
+## 模板发布链路
+
+配置模板 + 配置参数 + 数据源协议 → 校验（字段条件、参数阈值、协议范围）→ 配置快照
+→ 模板发布版本 → 数据源引用清单。链路数据落在数据源模块，业务规则在
+`backend/app/services/release.py`，接口挂在 `/api/datasource/release/...`：
+
+- `POST /release/snapshots` 生成配置快照：判定标准覆盖条件、范围和上限，任一不满足不允许保存。
+- `POST /release/snapshots/{快照编号}/review` 快照评审；发布版本只能绑定一份通过评审的配置快照。
+- `POST /release/versions` 创建发布版本：落到模板发布规则评审待处理队列（`GET /release/queue`）；
+  协议不匹配（如 CRAW-0002 × DATA-0002）不得生成新版本；并发发布只能有一个版本成功；
+  任何参数超限都不留可引用记录，失败后保留上一份可回退快照。
+- `POST /release/versions/{版本编号}/review` 发布规则评审：通过后数据源池更新模板引用清单——
+  差量复核只切换差量条目、回退点仍指向旧快照；全量发布整体更新、回退点改为上一完整草稿版本；
+  旧引用的任务继续读取原快照。
+- `GET /release/references/{清单编号}/reconcile` 引用清单核对发布版本和配置快照；
+  `POST /release/references/{清单编号}/rollback` 回退到回退点快照。
+- `GET /release/summary` 模板发布规则评审汇总；看板模块经
+  `GET /api/dashboard/release-summary` 同步取到汇总与发布版本数据。
 
 领域：数据工程
 子方向：数据采集、爬虫与RPA

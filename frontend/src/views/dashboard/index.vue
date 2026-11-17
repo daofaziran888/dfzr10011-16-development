@@ -59,6 +59,32 @@
       <span>共 {{ total }} 条全局采集看板记录</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
+
+    <section class="chain-section">
+      <h3>模板发布规则评审汇总</h3>
+      <p class="page-desc">同步取到数据源模块的模板发布规则评审汇总和模板发布版本数据。</p>
+      <div class="stat-row">
+        <article v-for="item in releaseStats" :key="item.label" class="stat-card">
+          <span class="stat-label">{{ item.label }}</span>
+          <strong class="stat-value">{{ item.value }}</strong>
+        </article>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th v-for="column in releaseColumns" :key="column">{{ column }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in releaseVersions" :key="String(row.版本编号)">
+            <td v-for="column in releaseColumns" :key="column">{{ row[column] ?? '—' }}</td>
+          </tr>
+          <tr v-if="!releaseVersions.length">
+            <td :colspan="releaseColumns.length" class="empty-state">暂无模板发布版本数据</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
   </section>
 </template>
 
@@ -80,6 +106,30 @@ const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+
+const releaseColumns = ["版本编号", "模板编号", "条目编号", "绑定快照", "发布方式", "回退点快照", "status"]
+const releaseStats = ref<{ label: string; value: string | number }[]>([])
+const releaseVersions = ref<Row[]>([])
+
+async function reloadReleaseChain() {
+  try {
+    const response = await request(`${ENDPOINT}/release-summary`)
+    if (!response.ok) {
+      throw new Error('模板发布评审汇总读取失败')
+    }
+    const payload = await response.json()
+    const summary = payload.summary ?? {}
+    releaseStats.value = [
+      { label: '待评审快照', value: summary.配置快照?.待评审 ?? 0 },
+      { label: '评审待处理队列', value: summary.评审待处理队列 ?? 0 },
+      { label: '已发布版本', value: summary.模板发布版本?.已发布 ?? 0 },
+      { label: '引用清单一致/异常', value: `${summary.模板引用清单?.一致 ?? 0}/${summary.模板引用清单?.异常 ?? 0}` },
+    ]
+    releaseVersions.value = payload.versions ?? []
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '模板发布评审汇总读取失败'
+  }
+}
 
 function resetFilters() {
   filters.value = {}
@@ -126,5 +176,8 @@ async function reload() {
   }
 }
 
-onMounted(reload)
+onMounted(() => {
+  void reload()
+  void reloadReleaseChain()
+})
 </script>

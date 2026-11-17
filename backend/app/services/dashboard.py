@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.services.release import ReleaseService
 from app.store import store
 
 MODULE = "dashboard"
@@ -10,6 +11,8 @@ REQUIRED_FIELDS = ["面板编号", "面板名称", "显示指标"]
 STATUS_ORDER = ["草稿", "已启用", "已暂停", "已归档"]
 ACTION_RULES = {"启用面板": "草稿", "暂停面板": "已启用", "归档面板": "已暂停"}
 NEGATIVE_ACTIONS = []
+
+release_service = ReleaseService()
 
 
 class DashboardService:
@@ -59,3 +62,7 @@ class DashboardService:
         entry["pending"] = target != STATUS_ORDER[-1]
         entry["abnormal"] = action in NEGATIVE_ACTIONS
         return entry, f"看板面板已{action}"
+
+    def release_chain(self) -> dict[str, Any]:
+        """同步取到数据源模块的模板发布规则评审汇总和模板发布版本数据。"""
+        return release_service.dashboard_feed()

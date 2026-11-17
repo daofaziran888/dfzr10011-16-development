@@ -30,6 +30,19 @@ def list_entries(
     return PageResult(items=items, total=total, page=page, size=size)
 
 
+@router.get("/release-summary")
+def release_summary() -> dict[str, Any]:
+    """同步取到数据源模块的模板发布规则评审汇总和模板发布版本数据。"""
+    return service.release_chain()
+
+
+@router.get("/export")
+def export_entries() -> dict[str, Any]:
+    """导出全局采集看板清单：返回当前过滤条件下的全量数据。"""
+    items, total = service.list_entries(page=1, size=10000)
+    return {"module": "dashboard", "total": total, "items": items}
+
+
 @router.get("/{entry_id}", response_model=dict)
 def get_entry(entry_id: int) -> dict:
     """读取单条看板面板明细；不存在时给出可读的错误说明。"""
@@ -56,10 +69,3 @@ def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
     if entry is None:
         return ActionResult(ok=False, message=message)
     return ActionResult(ok=True, message=message, entry=entry)
-
-
-@router.get("/export")
-def export_entries() -> dict[str, Any]:
-    """导出全局采集看板清单：返回当前过滤条件下的全量数据。"""
-    items, total = service.list_entries(page=1, size=10000)
-    return {"module": "dashboard", "total": total, "items": items}
